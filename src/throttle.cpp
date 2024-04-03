@@ -40,6 +40,7 @@ float Throttle::potnomFiltered;
 float Throttle::throtmax;
 float Throttle::throtmin;
 float Throttle::regenRamp;
+float Throttle::regenrampstr;
 float Throttle::throttleRamp;
 float Throttle::throttleRamped;
 int Throttle::bmslimhigh;
@@ -100,26 +101,82 @@ void Throttle::UpdateDynamicRegenTravel(float regenTravelMax, float frequency)
    brknom = speedBasedRegenTravel;
 }
 
-float Throttle::CalcThrottle(float potnom, float pot2nom, bool brkpedal)
+/**
+ * Calculate throttle and regen. 
+ * - Increase regentravel when lifting accelerator using historical pedal values.
+ * - Decrease regentravel when speed goes below regenrampstr.
+ * 
+ * Parameters:
+ * potnom = accelerator pedal pressed percentage
+ * pot2nom = optional potentiometer for adjusting regen braking
+ * brkpedal = is brake pedal pressed
+ * rotorfreq = rotor rotation freqyency in hz
+ *
+ * Used variables:
+ * brkmax (offthrotregen) = max regen percentage to apply, when throttle is lifted
+ * brknompedal (brakeregen) = regen percentage to apply, when brakes are applied
+ * brknom (regentravel) = percentage of how much of accelerator is assigned for adjusting regen
+ * regenrampstr = rotor hz where regen strenght start to decrease linearly
+*/
+float Throttle::CalcThrottle(float potnom, float pot2nom, bool brkpedal, float rotorfreq)
 {
-   float scaledBrkMax = brkpedal ? brknompedal : brkmax;
+   // variables for rolling average calculation
+   static const int history = 20;         // 20 events, 10ms delta = 200ms of history to calculate
+   static int currentArrayIndex = 0;      // pointer where to pu the next value
+   static float prevPotnom[history] = {}; // array holding previous potnom value
+   static float potnomSums = 0;           // sum of values in array
 
-   //Never reach 0, because that can spin up the motor
+   // current dynamic regentravel
+   static float currentRegentravel = 0.0;
+
+   float scaledBrkMax = brkpedal ? brknompedal : brkmax;
+   // Never reach 0, because that can spin up the motor
    scaledBrkMax = -0.1 + (scaledBrkMax * pot2nom) / 100.0f;
 
-   if (brkpedal)
+   // increase speedBasedRegenTravel linearly until rotorfreq reaches maxregentravelhz, then stay at max.
+   // Don't go over max regentravel (brknom).
+   float speedBasedRegenTravel = MIN(brknom * rotorfreq / maxregentravelhz, brknom);
+   // decreasing regentravel when rotor hz is goes below "regen ramp start"
+   if (rotorfreq < regenrampstr)
+   {
+      float decreasingRegenTravel = brknom * rotorfreq / regenrampstr;
+      // decrease only if it's been higher before (don't start to increase on low speeds to keep linear curve)
+      if (currentRegentravel > decreasingRegenTravel)
+      {
+         currentRegentravel = decreasingRegenTravel;
+      }
+   }
+
+   // increase currentRegenTravel when lifting accelerator
+   if (currentRegentravel < speedBasedRegenTravel) // if currentregentravel is smaller than speedBaseRegenTravel 
+   {
+      // current pedal position delta compared against average of last 200ms
+      float acceleratorDelta = potnom - (potnomSums / (float)history);
+      if (acceleratorDelta < 0) // accelerator is being lifted (acceleratorDelta is negative)
+      {
+        currentRegentravel = RAMPUP(currentRegentravel, speedBasedRegenTravel, -acceleratorDelta);
+      }
+   }
+
+   //keep short pedal history 
+   potnomSums -= prevPotnom[currentArrayIndex];           // remove old potnom value from average calculation sums
+   potnomSums += potnom;                                  // replace it with new potnom value
+   prevPotnom[currentArrayIndex] = potnom;                // put current potnom to array
+   currentArrayIndex = (currentArrayIndex + 1) % history; // loop array index from 0 - history, start again from 0
+
+   if (brkpedal) // give max brake regen
    {
       potnom = scaledBrkMax;
    }
-   else if (potnom < brknom)
+   else if (potnom < currentRegentravel) // calculate regen
    {
-      potnom -= brknom;
-      potnom = -(potnom * scaledBrkMax / brknom);
+      potnom -= currentRegentravel;
+      potnom = -(potnom * scaledBrkMax / currentRegentravel);
    }
-   else
+   else // calculate thorttle
    {
-      potnom -= brknom;
-      potnom = 100.0f * potnom / (100.0f - brknom);
+      potnom -= currentRegentravel;
+      potnom = 100.0f * potnom / (100.0f - currentRegentravel);
    }
 
    return potnom;
