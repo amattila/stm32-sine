@@ -54,7 +54,6 @@ float Throttle::fmax;
 int Throttle::accelmax;
 int Throttle::accelflt;
 float Throttle::maxregentravelhz;
-float Throttle::regenrampstr;
 
 bool Throttle::CheckAndLimitRange(int* potval, uint8_t potIdx)
 {
@@ -86,38 +85,6 @@ float Throttle::DigitsToPercent(int potval, int potidx)
    return (100 * (potval - potmin[potidx])) / (potmax[potidx] - potmin[potidx]);
 }
 
-
-/**
- * Calculate throttle and regen.
- * - Increase regentravel when lifting accelerator using historical pedal values.
- * - Decrease regentravel when speed goes below regenrampstr.
- *
- * Parameters:
- * potnom = accelerator pedal pressed percentage
- * pot2nom = optional potentiometer for adjusting regen braking
- * brkpedal = is brake pedal pressed
- * rotorfreq = rotor rotation freqyency in hz
- *
- * Used variables:
- * brkmax = regen percentage to apply, when brake is pressed
- * brknompedal = regen percentage to apply, when accelerator is lifted
- * brknom = percentage of how much of accelerator is assigned for adjusting regen
- * regenrampstr = rotor hz where regen strenght start to decrease linearly
-*/
-float Throttle::CalcThrottle(float potnom, float pot2nom, bool brkpedal, float rotorfreq)
-{
-   // variables for rolling average calculation
-   static const int history = 20;         // 20 events, 10ms delta = 200ms of history to calculate
-   static int currentArrayIndex = 0;      // pointer where to pu the next value
-   static float prevPotnom[history] = {}; // array holding previous potnom value
-   static float potnomSums = 0;           // sum of values in array
-
-   // current dynamic regentravel
-   static float currentRegentravel = 0.0;
-
-   brknom = speedBasedRegenTravel;
-}
-
 /**
  * Calculate throttle and regen. 
  * - Increase regentravel when lifting accelerator using historical pedal values.
@@ -141,7 +108,7 @@ float Throttle::CalcThrottle(float potnom, float pot2nom, bool brkpedal, float r
    static const int history = 20;         // 20 events, 10ms delta = 200ms of history to calculate
    static int currentArrayIndex = 0;      // pointer where to pu the next value
    static float prevPotnom[history] = {}; // array holding previous potnom value
-   static float potnomSums = 0;           // sum of values in array
+   static float potnomSums = 0.0f;           // sum of values in array
 
    // current dynamic regentravel
    static float currentRegentravel = 0.0;
