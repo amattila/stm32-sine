@@ -131,14 +131,17 @@ float Throttle::CalcThrottle(float potnom, float pot2nom, bool brkpedal, float r
       }
    }
 
-   // increase currentRegenTravel when lifting accelerator
-   if (currentRegentravel < speedBasedRegenTravel) // if currentregentravel is smaller than speedBaseRegenTravel 
+   // increase currentRegenTravel when lifting accelerator OR when foot is completely off throttle
+   if (currentRegentravel < speedBasedRegenTravel)
    {
-      // current pedal position delta compared against average of last 200ms
       float acceleratorDelta = potnom - (potnomSums / (float)history);
-      if (acceleratorDelta < 0) // accelerator is being lifted (acceleratorDelta is negative)
+      if (acceleratorDelta < 0) // accelerator is being lifted
       {
         currentRegentravel = RAMPUP(currentRegentravel, speedBasedRegenTravel, -acceleratorDelta);
+      }
+      else if (potnom < 0.1f)  // Added check for foot completely off throttle
+      {
+         currentRegentravel = speedBasedRegenTravel;
       }
    }
 
@@ -150,27 +153,19 @@ float Throttle::CalcThrottle(float potnom, float pot2nom, bool brkpedal, float r
 
    if (brkpedal) // give max brake regen
    {
-      potnom = scaledBrkMax;
+      return scaledBrkMax;
    }
-   else if (potnom < currentRegentravel) // calculate regen
+
+   if (potnom < currentRegentravel) // calculate regen
    {
       potnom -= currentRegentravel;
-      potnom = -(potnom * scaledBrkMax / currentRegentravel);
+      return -(potnom * scaledBrkMax / currentRegentravel);
    }
    else // calculate thorttle
    {
       potnom -= currentRegentravel;
-      potnom = 100.0f * potnom / (100.0f - currentRegentravel);
+      return 100.0f * potnom / (100.0f - currentRegentravel);
    }
-
-   // there next 4 lines are for calculating rolling average for historical pedal (potnom) position
-   // and saving current potnom
-   potnomSums -= prevPotnom[currentArrayIndex];           // remove old potnom value from average calculation sums
-   potnomSums += potnom;                                  // replace it with new potnom value
-   prevPotnom[currentArrayIndex] = potnom;                // put current potnom to array
-   currentArrayIndex = (currentArrayIndex + 1) % history; // loop array index from 0 - history, start again from 0
-
-   return potnom;
 }
 
 float Throttle::CalcThrottleBiDir(float potval, bool brkpedal)
