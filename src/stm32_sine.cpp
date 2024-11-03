@@ -147,7 +147,7 @@ static void Ms10Task(void)
       RunCharger(udc);
    }
 
-   stt |= DigIo::emcystop_in.Get() || hwRev == HW_REV3 ? STAT_NONE : STAT_EMCYSTOP;
+   stt |= DigIo::emcystop_in.Get() ? STAT_NONE : STAT_EMCYSTOP;
    stt |= DigIo::mprot_in.Get() ? STAT_NONE : STAT_MPROT;
    stt |= Param::GetInt(Param::potnom) <= 0 ? STAT_NONE : STAT_POTPRESSED;
    stt |= udc >= Param::GetFloat(Param::udcsw) ? STAT_NONE : STAT_UDCBELOWUDCSW;
