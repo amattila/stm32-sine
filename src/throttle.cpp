@@ -55,7 +55,7 @@ int Throttle::accelmax;
 int Throttle::accelflt;
 float Throttle::maxregentravelhz;
 
-bool Throttle::CheckAndLimitRange(int* potval, int potIdx)
+bool Throttle::CheckAndLimitRange(int* potval, uint8_t potIdx)
 {
    int potMin = potmax[potIdx] > potmin[potIdx] ? potmin[potIdx] : potmax[potIdx];
    int potMax = potmax[potIdx] > potmin[potIdx] ? potmax[potIdx] : potmin[potIdx];
