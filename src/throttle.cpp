@@ -54,7 +54,6 @@ float Throttle::fmax;
 int Throttle::accelmax;
 int Throttle::accelflt;
 float Throttle::maxregentravelhz;
-float Throttle::regenrampstr;
 
 bool Throttle::CheckAndLimitRange(int* potval, uint8_t potIdx)
 {
