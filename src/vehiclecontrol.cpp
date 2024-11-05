@@ -67,7 +67,7 @@ void VehicleControl::CanClear()
    can->RegisterUserMessage(Param::GetInt(Param::controlid));
 }
 
-bool VehicleControl::CanReceive(uint32_t canId, uint32_t data[2])
+bool VehicleControl::CanReceive(uint32_t canId, uint32_t data[2], uint8_t)
 {
    const int maxErrors = 5;
 
