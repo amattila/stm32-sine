@@ -17,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define VERSION 5.35
+#define VERSION 5.36
 
 /* Entries should be ordered as follows:
    1. Saveable parameters
@@ -301,7 +301,7 @@
 #if GITHUB_RUN_NUMBER == 0 //local build
 #define VER(G) VERSION.R
 #else //github runner build
-#define VER(G) VERSION.##G.B
+#define VER(G) VERSION.R
 #endif
 
 #define VER2(G) VER(G)
