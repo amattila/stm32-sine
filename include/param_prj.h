@@ -17,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define VERSION 5.35.AM2
+#define VERSION 5.35
 
 /* Entries should be ordered as follows:
    1. Saveable parameters
