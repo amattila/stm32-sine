@@ -62,7 +62,6 @@ extern "C" const TERM_CMD TermCmds[] =
   { "start", StartInverter },
   { "serial", TerminalCommands::PrintSerial },
   { "errors", PrintErrors },
-  { "uartcansend", TerminalCommands::UartCanSend },
   { NULL, NULL }
 };
 

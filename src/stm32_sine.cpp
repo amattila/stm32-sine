@@ -111,7 +111,7 @@ static void Ms100Task(void)
       {
          for (int i = 0; i < received; i++)
          {
-            terminal->PutChar(buffer[i]);
+            terminal->PutInputChar(buffer[i]);
          }
       }
    }
@@ -149,8 +149,11 @@ static void Ms10Task(void)
       {
          for (int i = 0; i < received; i++)
          {
-            terminal->PutChar(buffer[i]);
+            terminal->PutInputChar(buffer[i]);
          }
+
+         // Force command processing
+         terminal->Run();
       }
    }
 
