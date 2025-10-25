@@ -46,6 +46,7 @@
 #include "stm32_can.h"
 #include "canmap.h"
 #include "cansdo.h"
+#include "uart_over_can.h"
 
 #define PRINT_JSON 0
 
@@ -55,6 +56,7 @@ static Stm32Scheduler* scheduler;
 static CanHardware* can;
 static CanMap* canMap;
 static CanSdo* canSdo;
+static UartOverCan* uartOverCan;
 static Terminal* terminal;
 static bool seenBrakePedal = false;
 
@@ -396,16 +398,21 @@ extern "C" int main(void)
    Stm32Can c(CAN1, (CanHardware::baudrates)Param::GetInt(Param::canspeed));
    CanMap cm(&c);
    CanSdo sdo(&c, &cm);
+   UartOverCan uoc(&c);
    can = &c;
    canMap = &cm;
    canSdo = &sdo;
+   uartOverCan = &uoc;
    VehicleControl::SetCan(can);
    TerminalCommands::SetCanMap(canMap);
+   TerminalCommands::SetUartOverCan(uartOverCan);
 
    s.AddTask(Ms100Task, 100);
    s.AddTask(Ms10Task, 10);
 
    DigIo::prec_out.Set();
+
+   uoc.Init();
 
    Terminal t(USART3, TermCmds);
    terminal = &t;
