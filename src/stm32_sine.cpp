@@ -100,6 +100,17 @@ static void Ms100Task(void)
 
    if (Param::GetInt(Param::canperiod) == CAN_PERIOD_100MS)
       canMap->SendAll();
+
+   // Process UART over CAN data and feed it to terminal
+   if (terminal != NULL && uartOverCan != NULL)
+   {
+      uint8_t buffer[32];
+      int received = uartOverCan->GetUartData(buffer, sizeof(buffer));
+      for (int i = 0; i < received; i++)
+      {
+         terminal->PutChar(buffer[i]);
+      }
+   }
 }
 
 static void RunCharger(float udc)
