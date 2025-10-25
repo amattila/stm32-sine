@@ -1,7 +1,7 @@
 # UART over CAN – Minimal Tunnel Spec & Reference Implementation
 
-**Context**: STM32 (inverter side) ⟷ **CAN bus** (shared with other traffic) ⟷ ESP32 (display side, TWAI).  
-Goal: Forward a UART byte stream over CAN **without** CANopen/SDO. The link must coexist with other CAN traffic safely and predictably.
+**Context**: STM32 (inverter side) ⟷ **CAN bus** (shared with other traffic) ⟷ ESP32 (display side, TWAI).
+Goal: Create a transparent UART tunnel over CAN bus. CAN data is interpreted as UART input to the STM32 terminal, and terminal responses are automatically sent to both physical UART and CAN bus.
 
 ---
 
@@ -57,8 +57,8 @@ byte2..(1+LEN): DATA // up to 6 bytes (CAN max 8 bytes - 2 byte header = 6 bytes
 ### Summary
 - Uses libopencm3 CAN hardware abstraction
 - Implements CanCallback interface for message handling
-- Buffers received UART data until complete message (LAST=1)
-- Chunks outgoing UART data into CAN frames with SEQ + LEN_FLAGS format
+- CAN data is interpreted as UART input to the terminal
+- Terminal automatically sends responses to both physical UART and CAN bus
 
 ### UART over CAN Class Interface
 ```cpp
@@ -154,7 +154,8 @@ void UartOverCan::SendUartData(const uint8_t* data, uint32_t length)
 ### Integration with stm32-sine
 - Create `UartOverCan` instance with CAN hardware reference
 - Call `Init()` after CAN setup
-- In 100ms task, feed received UART data to terminal:
+- Set UART over CAN pointer to terminal: `terminal->SetUartOverCan(uartOverCan)`
+- In 10ms task, feed received UART data to terminal:
 ```cpp
 if (terminal != NULL && uartOverCan != NULL) {
     uint8_t buffer[32];
@@ -164,6 +165,7 @@ if (terminal != NULL && uartOverCan != NULL) {
     }
 }
 ```
+- Terminal automatically sends all output to both physical UART and CAN bus
 
 ---
 

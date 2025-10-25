@@ -30,11 +30,19 @@
 #include "pwmgeneration.h"
 #include "stm32_can.h"
 #include "terminalcommands.h"
+#include "uart_over_can.h"
+
+// Extern declarations for UART over CAN
+extern UartOverCan* uartOverCan;
+extern bool outputToCan;
+
+// Forward declaration
+class UartOverCan;
 
 static void LoadDefaults(Terminal* term, char *arg);
 static void StopInverter(Terminal* term, char *arg);
 static void StartInverter(Terminal* term, char *arg);
-static void PrintSerial(Terminal* term, char *arg);
+// PrintSerial is now in TerminalCommands
 static void PrintErrors(Terminal* term, char *arg);
 
 extern "C" const TERM_CMD TermCmds[] =
@@ -52,10 +60,9 @@ extern "C" const TERM_CMD TermCmds[] =
   { "defaults", LoadDefaults },
   { "stop", StopInverter },
   { "start", StartInverter },
-  { "serial", PrintSerial },
+  { "serial", TerminalCommands::PrintSerial },
   { "errors", PrintErrors },
   { "uartcansend", TerminalCommands::UartCanSend },
-  { "uartcanrecv", TerminalCommands::UartCanRecv },
   { NULL, NULL }
 };
 
@@ -103,10 +110,4 @@ static void PrintErrors(Terminal* term, char *arg)
    ErrorMessage::PrintAllErrors();
 }
 
-static void PrintSerial(Terminal* term, char *arg)
-{
-   arg = arg;
-   term = term;
-   printf("%X:%X:%X\r\n", DESIG_UNIQUE_ID2, DESIG_UNIQUE_ID1, DESIG_UNIQUE_ID0);
-}
 

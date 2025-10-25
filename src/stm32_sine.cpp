@@ -107,9 +107,12 @@ static void Ms100Task(void)
    {
       uint8_t buffer[32];
       int received = uartOverCan->GetUartData(buffer, sizeof(buffer));
-      for (int i = 0; i < received; i++)
+      if (received > 0)
       {
-         terminal->PutChar(buffer[i]);
+         for (int i = 0; i < received; i++)
+         {
+            terminal->PutChar(buffer[i]);
+         }
       }
    }
 }
@@ -137,6 +140,20 @@ static void RunCharger(float udc)
 //Normal run takes 70µs -> 0.7% cpu load (last measured version 3.5)
 static void Ms10Task(void)
 {
+   // Process UART over CAN data more frequently
+   if (terminal != NULL && uartOverCan != NULL)
+   {
+      uint8_t buffer[32];
+      int received = uartOverCan->GetUartData(buffer, sizeof(buffer));
+      if (received > 0)
+      {
+         for (int i = 0; i < received; i++)
+         {
+            terminal->PutChar(buffer[i]);
+         }
+      }
+   }
+
    static int initWait = 0;
    int opmode = Param::GetInt(Param::opmode);
    int chargemode = Param::GetInt(Param::chargemode);
@@ -417,7 +434,6 @@ extern "C" int main(void)
    uartOverCan = &uoc;
    VehicleControl::SetCan(can);
    TerminalCommands::SetCanMap(canMap);
-   TerminalCommands::SetUartOverCan(uartOverCan);
 
    s.AddTask(Ms100Task, 100);
    s.AddTask(Ms10Task, 10);
@@ -428,6 +444,7 @@ extern "C" int main(void)
 
    Terminal t(USART3, TermCmds);
    terminal = &t;
+   t.SetUartOverCan(&uoc);
 
    if (hwRev == HW_REV1)
       t.DisableTxDMA();
