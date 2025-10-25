@@ -421,6 +421,10 @@ extern "C" int main(void)
    canMap = &cm;
    canSdo = &sdo;
    uartOverCan = &uoc;
+   
+   // Initialize UART over CAN early to register callback before VehicleControl
+   uoc.Init();
+   
    VehicleControl::SetCan(can);
    TerminalCommands::SetCanMap(canMap);
 
@@ -428,8 +432,6 @@ extern "C" int main(void)
    s.AddTask(Ms10Task, 10);
 
    DigIo::prec_out.Set();
-
-   uoc.Init();
 
    Terminal t(USART3, TermCmds);
    terminal = &t;
