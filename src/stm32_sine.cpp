@@ -47,6 +47,7 @@
 #include "canmap.h"
 #include "cansdo.h"
 #include "uart_over_can.h"
+#include <cstddef>
 
 #define PRINT_JSON 0
 

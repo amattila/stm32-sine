@@ -55,103 +55,115 @@ byte2..(1+LEN): DATA // up to 7 bytes
 ## 2) STM32 Side (part of **stm32-sine**)
 
 ### Summary
-- Configure CAN (HAL) with a single 11-bit **accept-all mask** but **centered at `0x701`** so only that ID passes.
-- ISR collects frames, reassembles into a buffer, writes to UART when **LAST=1**.
-- TX path reads UART, chunks into ≤7B, sets **LAST** on the final chunk, and transmits to `0x700`.
+- Uses libopencm3 CAN hardware abstraction
+- Implements CanCallback interface for message handling
+- Buffers received UART data until complete message (LAST=1)
+- Chunks outgoing UART data into CAN frames with SEQ + LEN_FLAGS format
 
-### Compile-Time Parameters
-```c
-#define CAN_BAUD             500000        // adjust to your bus
-#define CAN_ID_TX            0x700         // STM32 -> ESP32
-#define CAN_ID_RX            0x701         // ESP32 -> STM32
-#define UART_TX_CHUNK_MAX    7
-#define RX_BUFFER_SIZE       512
-#define INTERFRAME_DELAY_US  1000          // 1 ms, tune as needed
+### UART over CAN Class Interface
+```cpp
+class UartOverCan : public CanCallback
+{
+public:
+    UartOverCan(CanHardware* can);
+    void Init();
+    void SendUartData(const uint8_t* data, uint32_t length);
+    int GetUartData(uint8_t* buffer, uint32_t maxLength);
+
+    // CanCallback interface
+    bool HandleRx(uint32_t canId, uint32_t data[2], uint8_t dlc);
+    void HandleClear();
+
+private:
+    CanHardware* m_can;
+    uint8_t m_rxBuffer[512];
+    uint32_t m_rxBufferPos;
+    uint8_t m_expectedSeq;
+};
 ```
 
-### CAN Filter (HAL)
-```c
-static void CAN_ConfigFilter_Only701(CAN_HandleTypeDef *hcan) {
-    CAN_FilterTypeDef f = {0};
-    f.FilterBank = 0;
-    f.FilterMode = CAN_FILTERMODE_IDMASK;
-    f.FilterScale = CAN_FILTERSCALE_32BIT;
-    f.FilterIdHigh = (CAN_ID_RX << 5);
-    f.FilterIdLow  = 0;
-    f.FilterMaskIdHigh = (0x7FF << 5);  // exact match
-    f.FilterMaskIdLow  = 0;
-    f.FilterFIFOAssignment = CAN_RX_FIFO0;
-    f.FilterActivation = ENABLE;
-    HAL_CAN_ConfigFilter(hcan, &f);
-}
-```
+### CAN Message Handling
+```cpp
+bool UartOverCan::HandleRx(uint32_t canId, uint32_t data[2], uint8_t dlc)
+{
+    if (canId == UART_CAN_RX_ID && dlc >= 2)
+    {
+        uint8_t* canData = (uint8_t*)data;
+        uint8_t seq = canData[0];
+        uint8_t lf = canData[1];
+        uint8_t n = lf & 0x0F;
+        bool last = (lf & 0x80) != 0;
 
-### RX Reassembly ISR → UART TX
-```c
-static uint8_t  rx_buf[RX_BUFFER_SIZE];
-static size_t   rx_len = 0;
-static uint8_t  expect_seq = 0;
+        // Validate frame
+        if (n > 7 || (2 + n) > dlc) {
+            m_rxBufferPos = 0; // Reset on invalid frame
+            return true;
+        }
 
-void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
-    CAN_RxHeaderTypeDef hdr; 
-    uint8_t d[8];
-    if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &hdr, d) != HAL_OK) return;
-    if (hdr.IDE != CAN_ID_STD || hdr.StdId != CAN_ID_RX || hdr.DLC < 2) return;
+        // Resync logic: reset if unexpected sequence
+        if (m_rxBufferPos == 0) m_expectedSeq = seq;
+        if (seq != m_expectedSeq) {
+            m_rxBufferPos = 0; // Resync
+            m_expectedSeq = seq;
+        }
+        m_expectedSeq++;
 
-    const uint8_t seq = d[0];
-    const uint8_t lf  = d[1];
-    const uint8_t n   = lf & 0x0F;
-    const bool last   = (lf & 0x80) != 0;
-    if (n > 7u || (2u + n) > hdr.DLC) { rx_len = 0; return; }
+        // Check buffer overflow
+        if (m_rxBufferPos + n > sizeof(m_rxBuffer)) {
+            m_rxBufferPos = 0; // Reset on overflow
+            return true;
+        }
 
-    if (rx_len == 0) expect_seq = seq;           // establish sync
-    if (seq != expect_seq) { rx_len = 0; expect_seq = seq; }  // resync
-    expect_seq++;
+        // Copy data
+        memcpy(&m_rxBuffer[m_rxBufferPos], &canData[2], n);
+        m_rxBufferPos += n;
 
-    if ((rx_len + n) > sizeof(rx_buf)) { rx_len = 0; return; }
-    memcpy(&rx_buf[rx_len], &d[2], n);
-    rx_len += n;
-
-    if (last) {
-        // send to local UART (blocking or ring-buffered)
-        HAL_UART_Transmit(&huartX, rx_buf, rx_len, 50);
-        rx_len = 0;
+        // If this is the last frame, message is complete
+        if (last) {
+            // Data is ready for reading via GetUartData()
+        }
     }
+    return true; // Continue processing other callbacks
 }
 ```
 
-### UART → CAN TX (Chunking)
-```c
-static void can_send_chunk(const uint8_t *p, uint8_t len, uint8_t last) {
+### UART Data Transmission
+```cpp
+void UartOverCan::SendUartData(const uint8_t* data, uint32_t length)
+{
     static uint8_t seq = 0;
-    CAN_TxHeaderTypeDef tx = {0};
-    tx.StdId = CAN_ID_TX; tx.IDE = CAN_ID_STD; tx.RTR = CAN_RTR_DATA; 
-    tx.DLC = 2 + len;
-    uint8_t d[8];
-    d[0] = seq++;
-    d[1] = (len & 0x0F) | (last ? 0x80 : 0x00);
-    memcpy(&d[2], p, len);
-    uint32_t mb;
-    while (HAL_CAN_AddTxMessage(&hcan, &tx, d, &mb) != HAL_OK) { /* retry/backoff */ }
-}
+    uint32_t sent = 0;
 
-void uart_to_can_send(const uint8_t *p, size_t len) {
-    while (len) {
-        uint8_t chunk = (len > UART_TX_CHUNK_MAX) ? UART_TX_CHUNK_MAX : (uint8_t)len;
-        size_t rem = len - chunk;
-        can_send_chunk(p, chunk, rem == 0);
-        p   += chunk;
-        len -= chunk;
-        // optional throttle for busy buses
-        // delay_us(INTERFRAME_DELAY_US);
+    while (sent < length)
+    {
+        uint8_t chunkSize = (length - sent) > 7 ? 7 : (uint8_t)(length - sent);
+        bool isLast = (sent + chunkSize >= length);
+        uint8_t canData[8] = {0};
+
+        // SEQ + LEN_FLAGS format
+        canData[0] = seq++;
+        canData[1] = (chunkSize & 0x0F) | (isLast ? 0x80 : 0x00);
+        memcpy(&canData[2], &data[sent], chunkSize);
+
+        m_can->Send(UART_CAN_TX_ID, canData, 2 + chunkSize);
+        sent += chunkSize;
     }
 }
 ```
 
-### Integration Hooks (stm32-sine)
-- Call `CAN_ConfigFilter_Only701()` after CAN init.
-- Enable interrupts: `HAL_CAN_Start()` + `HAL_CAN_ActivateNotification(..., CAN_IT_RX_FIFO0_MSG_PENDING)`.
-- In UART RX IRQ or task, gather bytes (one logical “message”) then call `uart_to_can_send()`.
+### Integration with stm32-sine
+- Create `UartOverCan` instance with CAN hardware reference
+- Call `Init()` after CAN setup
+- In 100ms task, feed received UART data to terminal:
+```cpp
+if (terminal != NULL && uartOverCan != NULL) {
+    uint8_t buffer[32];
+    int received = uartOverCan->GetUartData(buffer, sizeof(buffer));
+    for (int i = 0; i < received; i++) {
+        terminal->PutChar(buffer[i]);
+    }
+}
+```
 
 ---
 
