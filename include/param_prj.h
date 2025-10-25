@@ -17,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define VERSION 5.35
+#define VERSION 5.36
 
 /* Entries should be ordered as follows:
    1. Saveable parameters
@@ -109,7 +109,7 @@
 
 #define THROTTLE_PARAMETERS_COMMON \
     PARAM_ENTRY(CAT_THROTTLE,potmin,      "dig",     0,      3500,   0,      17  ) \
-    PARAM_ENTRY(CAT_THROTTLE,potmax,      "dig",     0,      3500,   3500,   18  ) \
+    PARAM_ENTRY(CAT_THROTTLE,potmax,      "dig",     0,      4095,   4095,   18  ) \
     PARAM_ENTRY(CAT_THROTTLE,pot2min,     "dig",     0,      4095,   4095,   63  ) \
     PARAM_ENTRY(CAT_THROTTLE,pot2max,     "dig",     0,      4095,   4095,   64  ) \
     PARAM_ENTRY(CAT_THROTTLE,potmode,     POTMODES,  0,      6,      0,      82  ) \
@@ -301,7 +301,7 @@
 #if GITHUB_RUN_NUMBER == 0 //local build
 #define VER(G) VERSION.R
 #else //github runner build
-#define VER(G) VERSION.##G.B
+#define VER(G) VERSION.R
 #endif
 
 #define VER2(G) VER(G)
