@@ -102,13 +102,14 @@ static void Ms100Task(void)
    if (Param::GetInt(Param::canperiod) == CAN_PERIOD_100MS)
       canMap->SendAll();
 
-   // Process UART over CAN data and feed it to terminal
+   // Process UART over CAN data using separate buffer
    if (terminal != NULL && uartOverCan != NULL)
    {
       uint8_t buffer[32];
       int received = uartOverCan->GetUartData(buffer, sizeof(buffer));
       if (received > 0)
       {
+         // Feed to terminal's CAN input buffer (separate from UART DMA)
          for (int i = 0; i < received; i++)
          {
             terminal->PutInputChar(buffer[i]);
@@ -140,20 +141,18 @@ static void RunCharger(float udc)
 //Normal run takes 70µs -> 0.7% cpu load (last measured version 3.5)
 static void Ms10Task(void)
 {
-   // Process UART over CAN data more frequently
+   // Process UART over CAN data using separate buffer
    if (terminal != NULL && uartOverCan != NULL)
    {
       uint8_t buffer[32];
       int received = uartOverCan->GetUartData(buffer, sizeof(buffer));
       if (received > 0)
       {
+         // Feed to terminal's CAN input buffer (separate from UART DMA)
          for (int i = 0; i < received; i++)
          {
             terminal->PutInputChar(buffer[i]);
          }
-
-         // Force command processing
-         terminal->Run();
       }
    }
 
