@@ -514,6 +514,17 @@ float VehicleControl::ProcessUdc()
       {
          fweak = MAP(Param::GetFloat(Param::potnom), 36, 100, (Param::GetFloat(Param::fweakstrt)), (Param::GetFloat(Param::fweak)));
       }
+      else if (Param::GetInt(Param::potnom) < 0)
+      {
+         //During regen, regenstrength sets braking flux as a percentage of
+         //full motor flux (fweak), independent of the light-load fweakstrt.
+         //0 falls back to fweakstrt for legacy behavior.
+         float regenstrength = Param::GetFloat(Param::regenstrength);
+         if (regenstrength > 0)
+            fweak = Param::GetFloat(Param::fweak) * 100.0f / regenstrength;
+         else
+            fweak = Param::GetFloat(Param::fweakstrt);
+      }
       else
       {
          fweak = Param::GetFloat(Param::fweakstrt);
